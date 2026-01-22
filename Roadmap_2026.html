@@ -1,0 +1,893 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Roadmap — User Journey View / Max Layout View (Self-Contained)</title>
+  <style>
+    :root{
+      --bg:#0b0f14;
+      --text:#e6edf3;
+      --muted:#9fb0c3;
+      --border:#243244;
+
+      --theme:#1a2a3d;
+      --node:#f5d36a;
+      --nodeText:#1b1400;
+
+      --accent:#7aa2ff;
+      --danger:#ff5a5a;     /* prereqs */
+      --success:#2ecc71;    /* downstream */
+
+      --shadow: 0 8px 30px rgba(0,0,0,.35);
+      --radius: 14px;
+      --radiusSm: 10px;
+      --font: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+    }
+    * { box-sizing:border-box; }
+    body{
+      margin:0;
+      font-family:var(--font);
+      background: radial-gradient(1200px 800px at 20% 0%, #122338 0%, var(--bg) 60%) fixed;
+      color:var(--text);
+      overflow:hidden;
+    }
+
+    header{
+      height:56px;
+      display:flex;
+      align-items:center;
+      padding:0 16px;
+      border-bottom:1px solid var(--border);
+      background: rgba(10,15,20,.75);
+      backdrop-filter: blur(10px);
+      gap:10px;
+    }
+    header .title{
+      font-weight:700;
+      letter-spacing:.2px;
+      white-space:nowrap;
+    }
+    header .subtitle{
+      color:var(--muted);
+      font-size:12.5px;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+      max-width: 40vw;
+    }
+    header .spacer{ flex:1; }
+
+    .controls{
+      display:flex;
+      gap:8px;
+      align-items:center;
+      flex-wrap:wrap;
+    }
+    .btn, .segBtn{
+      border:1px solid var(--border);
+      background: linear-gradient(180deg, #101a26, #0c131c);
+      color:var(--text);
+      padding:8px 10px;
+      border-radius:10px;
+      cursor:pointer;
+      font-size:12.5px;
+      user-select:none;
+    }
+    .btn:hover, .segBtn:hover{ border-color:#355071; }
+    .btn:active, .segBtn:active{ transform: translateY(1px); }
+
+    .seg{
+      display:inline-flex;
+      border:1px solid var(--border);
+      border-radius:12px;
+      overflow:hidden;
+    }
+    .segBtn{
+      border:none;
+      border-right:1px solid var(--border);
+      border-radius:0;
+      padding:8px 10px;
+      background: rgba(16,26,38,.85);
+    }
+    .segBtn:last-child{ border-right:none; }
+    .segBtn.active{
+      background: rgba(122,162,255,.15);
+      outline: 1px solid rgba(122,162,255,.55);
+    }
+
+    .search{
+      width:340px;
+      max-width:40vw;
+      padding:9px 10px;
+      border-radius:10px;
+      border:1px solid var(--border);
+      background:#0c131c;
+      color:var(--text);
+      outline:none;
+      font-size:12.5px;
+    }
+
+    .layout{
+      height: calc(100vh - 56px);
+      display:grid;
+      grid-template-columns: 300px 1fr;
+    }
+    aside{
+      border-right:1px solid var(--border);
+      background: rgba(15,22,32,.65);
+      backdrop-filter: blur(10px);
+      padding:14px;
+      overflow:auto;
+    }
+
+    .card{
+      padding:12px;
+      border:1px solid var(--border);
+      border-radius:var(--radius);
+      background: linear-gradient(180deg, rgba(16,26,38,.9), rgba(12,19,28,.9));
+      box-shadow: var(--shadow);
+      margin-bottom:12px;
+    }
+
+    .ujCard{
+      padding:12px;
+      border:1px solid var(--border);
+      border-radius:var(--radius);
+      background: linear-gradient(180deg, rgba(16,26,38,.9), rgba(12,19,28,.9));
+      box-shadow: var(--shadow);
+      margin-bottom:12px;
+      cursor:pointer;
+    }
+    .ujCard:hover{ border-color:#355071; }
+    .ujCard.active{ outline: 2px solid rgba(122,162,255,.45); }
+    .ujName{ font-weight:700; margin-bottom:4px; }
+    .ujJtbd{ color:var(--muted); font-size:12.5px; line-height:1.35; }
+
+    .legend{
+      margin-top:14px;
+      padding:12px;
+      border:1px dashed rgba(159,176,195,.35);
+      border-radius:var(--radius);
+      color:var(--muted);
+      font-size:12.5px;
+      line-height:1.35;
+    }
+    .legend .pill{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      margin-top:8px;
+      flex-wrap:wrap;
+    }
+    .swatch{ width:14px;height:14px;border-radius:4px;border:1px solid rgba(255,255,255,.15); }
+
+    main{
+      position:relative;
+      overflow:auto;
+      padding:16px;
+    }
+    .canvas{
+      position:relative;
+      min-width: 1300px;
+      padding-bottom: 48px;
+    }
+
+    .viewHeader{
+      display:flex;
+      align-items:flex-end;
+      justify-content:space-between;
+      gap:12px;
+      margin-bottom:12px;
+    }
+    .viewHeader h2{ margin:0; font-size:18px; }
+    .viewHeader .meta{ color:var(--muted); font-size:12.5px; }
+
+    .colsGrid{
+      display:grid;
+      grid-auto-flow: column;
+      grid-auto-columns: minmax(290px, 1fr);
+      gap:12px;
+      align-items:start;
+    }
+    .col{
+      border:1px solid var(--border);
+      background: linear-gradient(180deg, rgba(26,42,61,.75), rgba(16,26,38,.75));
+      border-radius:var(--radius);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+    }
+    .colHead{
+      padding:10px 12px;
+      border-bottom:1px solid rgba(36,50,68,.8);
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:10px;
+    }
+    .colTitle{ font-weight:800; font-size:12.5px; letter-spacing:.35px; text-transform:uppercase; }
+    .count{ color:var(--muted); font-size:12px; }
+
+    .group{
+      padding:10px 10px 12px;
+      border-bottom: 1px solid rgba(36,50,68,.55);
+    }
+    .group:last-child{ border-bottom:none; }
+    .groupTitle{
+      font-weight:700;
+      font-size:12.5px;
+      color: rgba(230,237,243,.95);
+      margin-bottom:8px;
+      display:flex;
+      justify-content:space-between;
+      gap:10px;
+      align-items:center;
+    }
+    .groupTitle span{ color: var(--muted); font-weight:600; font-size:12px; }
+    .nodes{
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+    }
+
+    .node{
+      border-radius:var(--radiusSm);
+      background: linear-gradient(180deg, rgba(245,211,106,1), rgba(243,195,61,1));
+      color:var(--nodeText);
+      padding:9px 10px;
+      border:1px solid rgba(0,0,0,.22);
+      box-shadow: 0 8px 18px rgba(0,0,0,.22);
+      cursor:pointer;
+      position:relative;
+      transition: transform .05s ease, filter .12s ease, opacity .12s ease, outline .12s ease;
+    }
+    .node small{
+      display:block;
+      color:rgba(27,20,0,.72);
+      margin-top:4px;
+      font-size:11.5px;
+      line-height:1.2;
+    }
+    .node:hover{ outline: 2px solid rgba(255,255,255,.35); }
+
+    /* Focus mode (same in both views) */
+    .node.dim{ opacity:.18; filter: saturate(.35) brightness(.85); }
+    .node.selected{ outline: 2px solid rgba(122,162,255,.9); transform: translateY(-1px); }
+    .node.prereq{
+      outline: 2px solid rgba(255,90,90,.95);
+      box-shadow: 0 10px 22px rgba(255,90,90,.12), 0 8px 18px rgba(0,0,0,.22);
+    }
+    .node.downstream{
+      outline: 2px solid rgba(46,204,113,.95);
+      box-shadow: 0 10px 22px rgba(46,204,113,.12), 0 8px 18px rgba(0,0,0,.22);
+    }
+
+    .tooltip{
+      position:fixed;
+      z-index:9999;
+      pointer-events:none;
+      max-width: 520px;
+      background: rgba(15,22,32,.95);
+      border: 1px solid rgba(36,50,68,.9);
+      border-radius: 12px;
+      padding:10px 12px;
+      box-shadow: var(--shadow);
+      color: var(--text);
+      font-size: 12.5px;
+      line-height:1.35;
+      display:none;
+    }
+    .tooltip .tTitle{ font-weight:700; margin-bottom:6px; }
+    .tooltip .tMeta{ color:var(--muted); font-size:12px; }
+    .kbd{ color:var(--muted); font-size:12px; margin-top:8px; }
+
+    .pillMini{
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+      padding:4px 8px;
+      border:1px solid rgba(36,50,68,.9);
+      border-radius:999px;
+      background: rgba(12,19,28,.7);
+      color: var(--muted);
+      font-size:12px;
+      white-space:nowrap;
+    }
+  </style>
+</head>
+<body>
+<header>
+  <div class="title">Roadmap</div>
+  <div class="subtitle" id="subtitle">User Journey view</div>
+  <div class="spacer"></div>
+
+  <div class="controls">
+    <div class="seg" role="tablist" aria-label="View Toggle">
+      <div class="segBtn active" id="btnViewUJ" role="tab" aria-selected="true">User Journey view</div>
+      <div class="segBtn" id="btnViewMax" role="tab" aria-selected="false">Max layout view</div>
+    </div>
+
+    <input id="search" class="search" placeholder="Search capabilities (SCIM, Arena, CMDB, SBOM, ...)" />
+    <button class="btn" id="reset">Reset</button>
+  </div>
+</header>
+
+<div class="layout">
+  <aside id="sidebar"></aside>
+  <main id="main">
+    <div class="canvas" id="canvas"></div>
+  </main>
+</div>
+
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+  // ===== UJs =====
+  const UJ = [
+    { id:"UJ1", name:"UJ1 — AI Governance Program", jtbd:"Build an AI governance program from scratch with limited resources and expertise." },
+    { id:"UJ2", name:"UJ2 — Internal AI System Inventory", jtbd:"Know what AI systems exist and keep that knowledge current without manual tracking." },
+    { id:"UJ3", name:"UJ3 — AI Vulnerability Assessment", jtbd:"Understand which AI systems are vulnerable and what specific security risks each poses." },
+    { id:"UJ4", name:"UJ4 — Third Party Risk Management", jtbd:"Trust vendor AI systems and ensure vendor AI practices meet security & compliance standards." },
+    { id:"UJ5", name:"UJ5 — AI Compliance & Governance", jtbd:"Prove to auditors/regulators/customers/board that AI systems are compliant & governed." },
+    { id:"UJ6", name:"UJ6 — AI Vulnerability Remediation", jtbd:"Fix identified AI vulnerabilities and track remediation progress in an auditable way." },
+  ];
+
+  const N = (id, label, uj, theme, stage, notes="") => ({ id, label, uj, theme, stage, notes });
+
+  // ===== Nodes =====
+  const nodes = [
+    // UJ1
+    N("login_mgmt", "User Log-In / Management", "UJ1", "Access & Identity", "Onboarding"),
+    N("rbac_granular", "Granular RBAC", "UJ1", "Access & Identity", "Onboarding"),
+    N("custom_roles", "Custom Role Creation w/Group Support", "UJ1", "Access & Identity", "Onboarding"),
+    N("perm_mapping", "Permission Mapping", "UJ1", "Access & Identity", "Onboarding"),
+    N("impersonation", "Impersonation / Support Access Toggles", "UJ1", "Access & Identity", "Onboarding"),
+    N("vendor_role_assign", "Role Assignment for Vendors", "UJ1", "Third-Party Enablement", "Onboarding"),
+    N("iam_scim", "IAM Integration (SCIM)", "UJ1", "Access & Identity", "Onboarding"),
+    N("basic_onboarding", "Basic In-App Onboarding", "UJ1", "Onboarding Experience", "Onboarding"),
+    N("persona_onboarding", "Persona Based Onboarding", "UJ1", "Onboarding Experience", "Discovery"),
+    N("persona_dashboard", "Person Based Dashboard", "UJ1", "Onboarding Experience", "Inventory"),
+    N("tenant_event_logging", "Tenant Based Event Logging", "UJ1", "Observability & Auditability", "Inventory"),
+    N("governance_fw_ingest", "Governance Framework Ingestion", "UJ1", "Governance Frameworks", "Inventory"),
+    N("taxonomy_updates", "Taxonomy Updates (AI Application / AI System / AI Component / AI Service?)", "UJ1", "Governance Frameworks", "Inventory"),
+    N("ai_system_entity", "AI SYSTEM (core entity)", "UJ1", "System of Record", "Inventory"),
+    N("auto_solution_creation", "Automated AI Solution Creation (Repo/SNOW/Archer/Container based + ID stitching)", "UJ1", "System of Record", "Inventory"),
+    N("manual_id_config", "Manual Configurable ID Based", "UJ1", "System of Record", "Inventory"),
+    N("business_use_case_extract", "Business Use Case Extraction (SNOW CMDB / Archer / VCS README summary?)", "UJ1", "System of Record", "Inventory"),
+
+    // UJ2
+    N("vendor_discovery_upload", "Vendor Discovery / Upload", "UJ2", "Vendor & Inventory Intake", "Discovery"),
+    N("proc_tool_integrations", "Procurement Tool Integrations", "UJ2", "Vendor & Inventory Intake", "Discovery"),
+    N("vendor_csv_upload", "Vendor List Upload from CSV", "UJ2", "Vendor & Inventory Intake", "Discovery"),
+    N("campaign_orchestration", "Campaign Orchestration", "UJ2", "Vendor & Inventory Intake", "Discovery"),
+    N("campaign_orchestrator", "Campaign Orchestrator", "UJ2", "Vendor & Inventory Intake", "Discovery"),
+    N("campaign_mgmt_hub", "Campaign Management Hub", "UJ2", "Vendor & Inventory Intake", "Discovery"),
+    N("campaign_hub", "Campaign Hub", "UJ2", "Vendor & Inventory Intake", "Discovery"),
+
+    N("detect_ai_scan", "Detect AI Scan (language + coverage + context metadata)", "UJ2", "AI Detection", "Discovery",
+      "Includes: TypeScript, JavaScript(+Node), .Net(C#), Java, Python; coverage incl. agents/packages; 'Why/Where/What lang was AI detected?'"),
+    N("detect_ai_inventory", "Detect AI Inventory", "UJ2", "AI Detection", "Inventory",
+      "Language: Python/JavaScript/TypeScript; integrates upstream VCS & health checks; org-level GitHub App; GitLab subgroup support"),
+
+    N("vcs_upstream_support", "Integration Support: Upstream VCS (AzDO, Bitbucket, GitHub, GitLab; self-managed variants)", "UJ2", "Integrations", "Inventory"),
+    N("vcs_ext_github", "VCS Extension: Organization/Enterprise Level GitHub App", "UJ2", "Integrations", "Inventory"),
+    N("vcs_ext_gitlab", "VCS Extension: GitLab Sub-Group Support", "UJ2", "Integrations", "Inventory"),
+    N("vcs_health_check", "VCS Integration Health Check", "UJ2", "Integrations", "Inventory"),
+
+    N("cloud_support", "Cloud: Azure / AWS / GCP (incl. Defender XDR hunting API + Graph API catalog endpoints)", "UJ2", "Integrations", "Inventory"),
+    N("snow_cmdb", "ServiceNow CMDB Integration", "UJ2", "Integrations", "Inventory"),
+    N("snow_secops_ai_vr", "ServiceNow SecOps (AI VR Module)", "UJ2", "Integrations", "Inventory"),
+    N("archer", "Archer (GRC) Integration", "UJ2", "Integrations", "Inventory"),
+
+    N("public_api", "Public API (Custom Integration Configuration) — Critical Product Gap", "UJ2", "Integrations", "Inventory"),
+    N("integration_manager", "Integration Manager (manage multiple integrations of one type)", "UJ2", "Integrations", "Inventory"),
+    N("uniform_display", "Uniform Display across VCS/Cloud/Container", "UJ2", "Inventory UX", "Inventory"),
+    N("manage_inventory", "Manage Inventory: Group/Filter/Search/Sort + Add Context Metadata", "UJ2", "Inventory UX", "Inventory"),
+    N("version_history", "Versioning and History", "UJ2", "Inventory UX", "Inventory"),
+    N("dash_landing", "Detailed Dashboard / Landing Page", "UJ2", "Inventory UX", "Inventory"),
+    N("inv_change_notifications", "Inventory Change-Based Notifications", "UJ2", "Inventory UX", "Inventory"),
+
+    N("shallow_cloud_scan", "Shallow Cloud Scan (Agents/Models/Infrastructure)", "UJ2", "Sensors", "Inventory"),
+    N("shallow_container_scan", "Shallow Container Image Scan (SBOM; Agents/Models/Infrastructure)", "UJ2", "Sensors", "Inventory"),
+    N("container_registries", "Container Registries (Azure Defender for Cloud, Docker Hub, GHCR, GitLab CR, JFrog Artifactory)", "UJ2", "Sensors", "Inventory"),
+
+    N("bom_creation", "BOM Creation", "UJ2", "BOM & Artifacts", "Inventory"),
+    N("code_sensor", "Code Sensor", "UJ2", "BOM & Artifacts", "Inventory"),
+    N("ai_bom_creation", "AI BOM Creation", "UJ2", "BOM & Artifacts", "Inventory"),
+    N("sbom_generation", "SBOM Generation", "UJ2", "BOM & Artifacts", "Inventory"),
+
+    N("cicd_webhook", "CI/CD Webhook Automation", "UJ2", "Automation", "Inventory"),
+    N("scheduled_scans", "Scheduled Scans", "UJ2", "Automation", "Inventory"),
+
+    N("code_sensor_enhance", "Code Sensor Enhance (language scan capabilities + agent sensor + system prompt/guardrail detection + model tagging V2 + enhanced context metadata)", "UJ2", "Sensors", "Inventory"),
+    N("agent_sensor", "Agent Sensor", "UJ2", "Sensors", "Inventory"),
+    N("system_prompt_detection", "System Prompt Detection", "UJ2", "Sensors", "Inventory"),
+    N("guardrail_detection", "Guardrail Detection", "UJ2", "Sensors", "Inventory"),
+    N("model_tagging_v2", "Model Tagging V2", "UJ2", "Sensors", "Inventory"),
+    N("enhanced_context_metadata", "Enhanced Context Metadata", "UJ2", "Sensors", "Inventory"),
+
+    N("component_catalogs", "Component Catalogs: Model Inventory/Management + Agent Inventory/Management + Technology Component Flag", "UJ2", "System of Record", "Inventory"),
+    N("control_plane_severity", "Control Plane / Vuln Severity Configuration (component-level policy adherence by tenant)", "UJ2", "System of Record", "Inventory"),
+
+    N("ai_bom_landing", "AI BOM Landing Screen", "UJ2", "BOM & Artifacts", "Inventory"),
+    N("pdf_report_generation", "PDF/Report Generation", "UJ2", "Evidence", "Inventory"),
+
+    // UJ3
+    N("tech_vuln_mapping", "Tech Vulnerability Mapping", "UJ3", "Vulnerability Data", "Test"),
+    N("osv_mapping", "OSV Mapping to Package Versions", "UJ3", "Vulnerability Data", "Test"),
+    N("separate_bom_vuln_process", "Separate BOM & Vuln Mapping Process", "UJ3", "Vulnerability Data", "Test"),
+    N("continuous_vuln_updates", "Continuous Vulnerability Updates from OSV", "UJ3", "Vulnerability Data", "Test"),
+    N("integration_existing_tech_vuln", "Integration with Existing Tech Vuln Solutions", "UJ3", "Vulnerability Data", "Test"),
+
+    N("arena_testing", "AI System (Model) Testing: Arena (foundational model testing; agent frameworks & system prompts; non-HF open source models)", "UJ3", "Arena Testing", "Test"),
+    N("arena_agent_test_view", "Add Agent test view to Arena", "UJ3", "Arena Testing", "Test"),
+    N("model_categorization_enh", "Model Categorization Enhancements", "UJ3", "Arena Testing", "Test"),
+    N("refresh_manual_tests", "Refresh Manual Tests", "UJ3", "Arena Testing", "Test"),
+    N("continuous_testing", "Continuous Testing", "UJ3", "Arena Testing", "Test"),
+
+    N("vuln_mgmt_lp", "Vulnerability Management Landing Page", "UJ3", "Vulnerability Management", "Test"),
+    N("vuln_sort_filter", "Sort / Filter / Search / Group (Vuln Mgmt)", "UJ3", "Vulnerability Management", "Test"),
+    N("auto_open_close", "Automated Open/Close/New Identification on Re-Scan", "UJ3", "Vulnerability Management", "Test"),
+    N("diff_compare_reporting", "Diff Compare and Reporting (Technology & AI Solution; Component; Aggregate)", "UJ3", "Vulnerability Management", "Test"),
+
+    N("ai_system_scoring", "AI System Scoring & Prioritization (Tech Vuln + Model/Agent Vuln)", "UJ3", "Risk & Prioritization", "Test"),
+    N("mini_threat_model", "Mini Threat Model (manual or automated from use case description)", "UJ3", "Risk & Prioritization", "Test"),
+    N("vuln_augmentation", "Automated Vulnerability Augmentation (remediation/threat model/component policy based)", "UJ3", "Risk & Prioritization", "Test"),
+
+    // UJ6
+    N("shield_sandbox", "Arena Shield Sandbox (testing of system prompts/guardrails/agent frameworks)", "UJ6", "Shield Sandbox", "Remediation"),
+    N("shield_remediation_suggest", "Arena Shield Remediation Suggest (generic model / individual model / sys prompt / detected guardrails / agent framework / business use case augmented)", "UJ6", "Shield Recommendations", "Remediation"),
+    N("deploy_shield_reco", "Deploy Arena Shield Recommendation", "UJ6", "Deployment", "Remediation"),
+    N("guardrail_endpoint_deploy", "Guardrail Endpoint Deployment", "UJ6", "Deployment", "Remediation"),
+    N("continued_endpoint_validation", "Continued Endpoint Validation", "UJ6", "Deployment", "Remediation"),
+    N("auto_endpoint_config", "Automated Endpoint Configuration", "UJ6", "Deployment", "Remediation"),
+    N("manual_endpoint_config", "Manual Deployed Endpoint Configuration", "UJ6", "Deployment", "Remediation"),
+    N("closed_source_guardrail_integration", "Closed Source Guardrail Integration and Testing", "UJ6", "Shield Recommendations", "Remediation"),
+    N("continuous_scoring_diff", "Continuous Scoring w/ Diff Compare Reporting", "UJ6", "Measurement", "Remediation"),
+    N("manual_scoring_policy", "Manual Scoring Augmentation by Customer Policy", "UJ6", "Measurement", "Remediation"),
+
+    // UJ5
+    N("attestation_creation", "Attestation Creation & Automation", "UJ5", "Attestations", "Verify"),
+    N("attestation_templates", "Attestation Templates", "UJ5", "Attestations", "Verify"),
+    N("core_attestation_scoring_exp", "Core Attestation Scoring Expansion (NIST AI RMF full, ISO 27001, EU AI Act)", "UJ5", "Attestations", "Verify"),
+    N("framework_cont_monitor", "Core Framework Continuous Monitoring/Updating", "UJ5", "Attestations", "Verify"),
+    N("attestation_evidence_mapping", "Attestation Evidence Mapping (from security testing, remediation, integration sources; continuous mapping)", "UJ5", "Evidence Mapping", "Verify"),
+    N("attestation_auto_scoring", "Attestation Automated Scoring", "UJ5", "Attestations", "Verify"),
+    N("grc_platform_integration", "GRC Platform Integration (incl. SNOW Integration)", "UJ5", "GRC Integrations", "Verify"),
+    N("extend_custom_templates", "Extend Scoring to Custom Templates", "UJ5", "Attestations", "Verify"),
+    N("continuous_updating", "Continuous Updating", "UJ5", "Attestations", "Verify"),
+    N("dash_framework_scores", "Dashboard: Aggregate + Individual Framework", "UJ5", "Reporting", "Verify"),
+    N("custom_scoring_prompt_config", "Custom Scoring Prompt Configuration", "UJ5", "Attestations", "Verify"),
+    N("custom_test_evidence_upload", "Custom Test Evidence Upload Template", "UJ5", "Evidence Collection", "Verify"),
+    N("extendable_test_library", "Extendable Test Library + Deployable Evidence Collecting Agent", "UJ5", "Evidence Collection", "Verify"),
+    N("assessor_evidence_review", "Assessor Evidence Review/Mapping", "UJ5", "Assessor Workflow", "Verify"),
+    N("assessor_update_change_req", "Assessor Update/Change Request", "UJ5", "Assessor Workflow", "Verify"),
+    N("received_version_history", "Received Version and History", "UJ5", "Assessor Workflow", "Verify"),
+    N("sso_enforcement", "SSO Enforcement: Enforcement Toggle + Super Admin Service Door URL + Exemption Lists", "UJ5", "Security Controls", "Verify"),
+
+    // UJ4
+    N("third_party_cont_monitoring", "3rd Party Continuous Monitoring", "UJ4", "Vendor Monitoring", "Verify"),
+    N("published_version_history", "Published Version and History", "UJ4", "Vendor Monitoring", "Verify"),
+
+    // bottom dependency/platform items (kept in their given stages)
+    N("data_sensor_dlp", "Data Sensor — DLP Integrations", "UJ2", "Platform Plumbing", "Inventory"),
+    N("pass_tech_components", "Pass Tech Components from shared AI BOMs to Vuln Mapping", "UJ3", "Platform Plumbing", "Test"),
+    N("pass_model_components", "Pass Model Components from shared AI BOMs to Arena", "UJ3", "Platform Plumbing", "Test"),
+    N("enable_shield_sandbox_shared", "Enable Shield Sandbox Testing for Shared AI BOMs", "UJ6", "Platform Plumbing", "Remediation"),
+    N("pass_ai_solution_components", "Pass AI Solution Components from shared AI BOMs to Arena", "UJ3", "Platform Plumbing", "Test"),
+    N("pass_agentic_frameworks", "Pass Agentic Frameworks from shared AI BOMs to Arena", "UJ3", "Platform Plumbing", "Test"),
+    N("enable_shield_suggest_shared", "Enable Shield Remediation Suggestions for Shared Tested AI BOMs", "UJ6", "Platform Plumbing", "Remediation"),
+    N("pass_suggestions_to_vendor", "Pass Remediation Suggestions back to Vendor", "UJ4", "Vendor Loop", "Verify"),
+    N("refresh_pipeline", "Refresh Pipeline", "UJ2", "Platform Plumbing", "Inventory"),
+    N("job_orchestration", "Job Orchestration", "UJ2", "Platform Plumbing", "Inventory"),
+    N("vuln_report_update", "Vulnerability Report Generation Update", "UJ5", "Reporting", "Verify"),
+    N("code_sensor_v2", "Code Sensor V2", "UJ2", "Sensors", "Inventory"),
+    N("continuous_monitoring_pilot", "Continuous Monitoring Pilot", "UJ4", "Vendor Monitoring", "Verify"),
+    N("vcs_integration_improvements", "VCS Integration Improvements", "UJ2", "Integrations", "Inventory"),
+    N("public_facing_api", "Public-Facing API for Data Access & Integration", "UJ2", "Integrations", "Inventory"),
+    N("mcp_integration", "MCP Integration", "UJ2", "Integrations", "Inventory"),
+  ];
+
+  // ===== Edges (dependencies) =====
+  const edges = [
+    ["data_sensor_dlp", "detect_ai_inventory"],
+    ["detect_ai_inventory", "ai_bom_creation"],
+    ["ai_bom_creation", "pass_tech_components"],
+    ["pass_tech_components", "tech_vuln_mapping"],
+    ["ai_bom_creation", "pass_model_components"],
+    ["pass_model_components", "arena_testing"],
+    ["ai_bom_creation", "pass_ai_solution_components"],
+    ["pass_ai_solution_components", "arena_testing"],
+    ["ai_bom_creation", "pass_agentic_frameworks"],
+    ["pass_agentic_frameworks", "arena_agent_test_view"],
+
+    ["arena_testing", "enable_shield_sandbox_shared"],
+    ["enable_shield_sandbox_shared", "shield_sandbox"],
+    ["arena_testing", "enable_shield_suggest_shared"],
+    ["enable_shield_suggest_shared", "shield_remediation_suggest"],
+    ["shield_remediation_suggest", "pass_suggestions_to_vendor"],
+
+    ["refresh_pipeline", "job_orchestration"],
+    ["job_orchestration", "scheduled_scans"],
+    ["scheduled_scans", "continuous_testing"],
+
+    ["vuln_mgmt_lp", "ai_system_scoring"],
+    ["ai_system_scoring", "attestation_evidence_mapping"],
+    ["shield_sandbox", "attestation_evidence_mapping"],
+    ["attestation_evidence_mapping", "attestation_auto_scoring"],
+    ["attestation_auto_scoring", "dash_framework_scores"],
+    ["pdf_report_generation", "vuln_report_update"],
+
+    ["vcs_integration_improvements", "vcs_health_check"],
+    ["public_api", "public_facing_api"],
+    ["mcp_integration", "public_facing_api"],
+  ];
+
+  // ===== App State =====
+  const sidebar = document.getElementById("sidebar");
+  const canvas = document.getElementById("canvas");
+  const tooltip = document.getElementById("tooltip");
+  const search = document.getElementById("search");
+  const subtitle = document.getElementById("subtitle");
+
+  const btnViewUJ = document.getElementById("btnViewUJ");
+  const btnViewMax = document.getElementById("btnViewMax");
+
+  let viewMode = "UJ";          // "UJ" | "MAX"
+  let activeUJ = "UJ2";
+  let selectedNodeId = null;
+
+  const STAGE_ORDER = ["Onboarding","Discovery","Inventory","Test","Remediation","Verify"];
+  const STAGE_LABEL = {
+    "Onboarding":"Onboarding",
+    "Discovery":"Discovery",
+    "Inventory":"Inventory",
+    "Test":"Test",
+    "Remediation":"Remediation",
+    "Verify":"Verify"
+  };
+
+  // ===== Helpers =====
+  function escapeHtml(s){
+    return String(s)
+      .replaceAll("&","&amp;")
+      .replaceAll("<","&lt;")
+      .replaceAll(">","&gt;")
+      .replaceAll('"',"&quot;")
+      .replaceAll("'","&#39;");
+  }
+  function idToNode(id){ return nodes.find(n=>n.id===id); }
+  function idToLabel(id){ const n = idToNode(id); return n ? n.label : id; }
+  function ujName(id){ return (UJ.find(u=>u.id===id) || {}).name || id; }
+
+  function prereqsOf(id){
+    const prereq = [];
+    for(const [a,b] of edges) if(b===id) prereq.push(a);
+    return [...new Set(prereq)];
+  }
+  function downstreamOf(id){
+    const down = [];
+    for(const [a,b] of edges) if(a===id) down.push(b);
+    return [...new Set(down)];
+  }
+
+  // ===== Focus coloring (works in both views) =====
+  function applyFocus(id){
+    const prereq = new Set(prereqsOf(id));
+    const down = new Set(downstreamOf(id));
+
+    document.querySelectorAll(".node").forEach(el=>{
+      const nid = el.dataset.id;
+      el.classList.remove("dim","selected","prereq","downstream");
+
+      if(nid === id){ el.classList.add("selected"); return; }
+      if(prereq.has(nid)){ el.classList.add("prereq"); return; }
+      if(down.has(nid)){ el.classList.add("downstream"); return; }
+
+      // dim only items currently "present" (displayed) to avoid weirdness
+      if(el.style.display !== "none") el.classList.add("dim");
+    });
+  }
+  function clearFocus(){
+    document.querySelectorAll(".node").forEach(el=>{
+      el.classList.remove("dim","selected","prereq","downstream");
+    });
+    hideTooltip();
+  }
+
+  // ===== Tooltip =====
+  function showTooltip(id, evt){
+    if(selectedNodeId) return; // pinned focus: suppress tooltip
+    const n = idToNode(id);
+    if(!n) return;
+
+    const prereq = prereqsOf(id).map(idToLabel);
+    const down = downstreamOf(id).map(idToLabel);
+
+    tooltip.style.display = "block";
+    tooltip.innerHTML = `
+      <div class="tTitle">${escapeHtml(n.label)}</div>
+      <div class="tMeta">
+        <div><b>User Journey:</b> ${escapeHtml(ujName(n.uj))}</div>
+        <div><b>Stage:</b> ${escapeHtml(n.stage||"—")} · <b>Theme:</b> ${escapeHtml(n.theme||"—")}</div>
+        ${n.notes ? `<div style="margin-top:6px;color:var(--muted)">${escapeHtml(n.notes)}</div>` : ""}
+        <div style="margin-top:8px"><b style="color:var(--danger)">Depends on:</b> ${prereq.length ? prereq.map(escapeHtml).join(", ") : "—"}</div>
+        <div><b style="color:var(--success)">Enables:</b> ${down.length ? down.map(escapeHtml).join(", ") : "—"}</div>
+        <div class="kbd">Click to focus · Esc to clear</div>
+      </div>
+    `;
+    moveTooltip(evt);
+  }
+  function moveTooltip(evt){
+    if(tooltip.style.display==="none") return;
+    const pad = 14;
+    let x = evt.clientX + 14;
+    let y = evt.clientY + 14;
+    const r = tooltip.getBoundingClientRect();
+    if(x + r.width + pad > window.innerWidth) x = evt.clientX - r.width - 14;
+    if(y + r.height + pad > window.innerHeight) y = evt.clientY - r.height - 14;
+    tooltip.style.left = x + "px";
+    tooltip.style.top  = y + "px";
+  }
+  function hideTooltip(){ tooltip.style.display="none"; }
+
+  // ===== Search =====
+  function applySearch(q){
+    q = (q||"").trim().toLowerCase();
+    if(!q){
+      document.querySelectorAll(".node").forEach(el=> el.style.display = "");
+      return;
+    }
+    document.querySelectorAll(".node").forEach(el=>{
+      const n = idToNode(el.dataset.id);
+      const text = (n.label + " " + (n.notes||"") + " " + (n.stage||"") + " " + (n.theme||"") + " " + (n.uj||"")).toLowerCase();
+      el.style.display = text.includes(q) ? "" : "none";
+    });
+  }
+
+  // ===== Wiring for nodes after render =====
+  function wireNodes(){
+    document.querySelectorAll(".node").forEach(el=>{
+      el.addEventListener("mouseenter", (e)=> showTooltip(el.dataset.id, e));
+      el.addEventListener("mousemove", (e)=> moveTooltip(e));
+      el.addEventListener("mouseleave", ()=> { if(!selectedNodeId) hideTooltip(); });
+
+      el.addEventListener("click", (e)=>{
+        e.stopPropagation();
+        const id = el.dataset.id;
+        selectedNodeId = (selectedNodeId === id) ? null : id;
+        if(selectedNodeId) applyFocus(selectedNodeId);
+        else clearFocus();
+      });
+    });
+
+    document.getElementById("main").onclick = ()=>{
+      selectedNodeId = null;
+      clearFocus();
+    };
+
+    // Apply search immediately (and then focus if pinned)
+    applySearch(search.value);
+    if(selectedNodeId) applyFocus(selectedNodeId);
+  }
+
+  // ===== Sidebar =====
+  function renderSidebar(){
+    if(viewMode === "UJ"){
+      sidebar.innerHTML = `
+        ${UJ.map(u => `
+          <div class="ujCard ${u.id===activeUJ?'active':''}" data-uj="${u.id}">
+            <div class="ujName">${escapeHtml(u.name)}</div>
+            <div class="ujJtbd">${escapeHtml(u.jtbd)}</div>
+          </div>
+        `).join("")}
+        <div class="legend">
+          <div><b>Legend</b></div>
+          <div class="pill"><span class="swatch" style="background: var(--theme)"></span>Theme grouping</div>
+          <div class="pill"><span class="swatch" style="background: var(--node)"></span>Capability (yellow)</div>
+          <div class="pill"><span class="swatch" style="background: var(--danger)"></span><b>Red</b>: prerequisites</div>
+          <div class="pill"><span class="swatch" style="background: var(--success)"></span><b>Green</b>: downstream</div>
+          <div class="pill"><span class="swatch" style="background: transparent;border-color:rgba(122,162,255,.7)"></span><b>Blue</b>: selected</div>
+          <div style="margin-top:10px">Tip: click to pin focus. Esc clears.</div>
+        </div>
+      `;
+      sidebar.querySelectorAll(".ujCard").forEach(el=>{
+        el.addEventListener("click", ()=>{
+          activeUJ = el.dataset.uj;
+          selectedNodeId = null;
+          render();
+        });
+      });
+    } else {
+      // Max layout sidebar
+      const counts = STAGE_ORDER.map(s => [s, nodes.filter(n => n.stage === s).length]);
+      sidebar.innerHTML = `
+        <div class="card">
+          <div style="font-weight:800;margin-bottom:6px">Max layout view</div>
+          <div style="color:var(--muted);font-size:12.5px;line-height:1.35">
+            Items are arranged into <b>stage columns</b> (Onboarding → Verify), grouped by <b>theme</b>.
+          </div>
+          <div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:8px">
+            ${counts.map(([s,c])=> `<div class="pillMini">${escapeHtml(s)} <span style="opacity:.7">(${c})</span></div>`).join("")}
+          </div>
+        </div>
+
+        <div class="legend">
+          <div><b>Legend</b></div>
+          <div class="pill"><span class="swatch" style="background: var(--node)"></span>Capability (yellow)</div>
+          <div class="pill"><span class="swatch" style="background: var(--danger)"></span><b>Red</b>: prerequisites</div>
+          <div class="pill"><span class="swatch" style="background: var(--success)"></span><b>Green</b>: downstream</div>
+          <div style="margin-top:10px">Tip: click to pin focus. Esc clears.</div>
+        </div>
+      `;
+    }
+  }
+
+  // ===== Render UJ View =====
+  function renderUJView(){
+    const ujMeta = UJ.find(u=>u.id===activeUJ);
+    const filtered = nodes.filter(n=>n.uj===activeUJ);
+
+    // theme -> nodes
+    const byTheme = {};
+    for(const n of filtered){
+      (byTheme[n.theme] ||= []).push(n);
+    }
+    const themeNames = Object.keys(byTheme).sort((a,b)=>a.localeCompare(b));
+    themeNames.forEach(t => byTheme[t].sort((a,b)=>a.label.localeCompare(b.label)));
+
+    canvas.innerHTML = `
+      <div class="viewHeader">
+        <div>
+          <h2>${escapeHtml(ujMeta.name)}</h2>
+          <div class="meta">${escapeHtml(ujMeta.jtbd)}</div>
+        </div>
+        <div class="meta">${filtered.length} capabilities · ${themeNames.length} themes</div>
+      </div>
+
+      <div class="colsGrid">
+        ${themeNames.map(t => `
+          <section class="col">
+            <div class="colHead">
+              <div class="colTitle">${escapeHtml(t)}</div>
+              <div class="count">${byTheme[t].length}</div>
+            </div>
+            <div class="group" style="border-bottom:none;padding-top:10px">
+              <div class="nodes">
+                ${byTheme[t].map(n => nodeHtml(n)).join("")}
+              </div>
+            </div>
+          </section>
+        `).join("")}
+      </div>
+    `;
+  }
+
+  // ===== Render Max View =====
+  function renderMaxView(){
+    // Stage -> Theme -> nodes
+    const byStage = {};
+    for(const s of STAGE_ORDER) byStage[s] = {};
+
+    for(const n of nodes){
+      const stage = n.stage || "Inventory";
+      if(!byStage[stage]) byStage[stage] = {};
+      (byStage[stage][n.theme] ||= []).push(n);
+    }
+
+    // Sort themes + nodes
+    for(const s of Object.keys(byStage)){
+      for(const t of Object.keys(byStage[s])){
+        byStage[s][t].sort((a,b)=>a.label.localeCompare(b.label));
+      }
+    }
+
+    const total = nodes.length;
+
+    canvas.innerHTML = `
+      <div class="viewHeader">
+        <div>
+          <h2>Max layout view</h2>
+          <div class="meta">All capabilities arranged by <b>stage</b> columns, grouped by <b>theme</b>.</div>
+        </div>
+        <div class="meta">${total} capabilities · ${STAGE_ORDER.length} stages</div>
+      </div>
+
+      <div class="colsGrid">
+        ${STAGE_ORDER.map(stage => {
+          const themesObj = byStage[stage] || {};
+          const themeNames = Object.keys(themesObj).sort((a,b)=>a.localeCompare(b));
+          const stageCount = themeNames.reduce((sum,t)=> sum + themesObj[t].length, 0);
+
+          return `
+            <section class="col">
+              <div class="colHead">
+                <div class="colTitle">${escapeHtml(STAGE_LABEL[stage] || stage)}</div>
+                <div class="count">${stageCount}</div>
+              </div>
+
+              ${themeNames.map(t => `
+                <div class="group">
+                  <div class="groupTitle">
+                    <div>${escapeHtml(t)}</div>
+                    <span>${themesObj[t].length}</span>
+                  </div>
+                  <div class="nodes">
+                    ${themesObj[t].map(n => nodeHtml(n, true)).join("")}
+                  </div>
+                </div>
+              `).join("")}
+            </section>
+          `;
+        }).join("")}
+      </div>
+    `;
+  }
+
+  function nodeHtml(n, includeMeta=false){
+    // includeMeta=true adds tiny metadata line helpful in Max view
+    const metaBits = [];
+    if(includeMeta) metaBits.push(ujName(n.uj).replace(/^UJ\d+\s—\s/,""));
+    if(n.stage) metaBits.push(n.stage);
+
+    const meta = metaBits.length ? ` · ${metaBits.join(" / ")}` : "";
+
+    return `
+      <div class="node" data-id="${n.id}">
+        ${escapeHtml(n.label)}
+        ${(n.stage || n.notes || includeMeta) ? `<small>${n.stage ? `Stage: ${escapeHtml(n.stage)}` : ""}${n.notes ? `${n.stage ? " · " : ""}${escapeHtml(n.notes)}` : ""}${includeMeta ? `${(n.stage||n.notes) ? "" : ""}${escapeHtml(meta)}` : ""}</small>` : ""}
+      </div>
+    `;
+  }
+
+  // ===== Render root =====
+  function render(){
+    subtitle.textContent = (viewMode === "UJ") ? "User Journey view" : "Max layout view";
+    renderSidebar();
+
+    if(viewMode === "UJ") renderUJView();
+    else renderMaxView();
+
+    wireNodes();
+  }
+
+  // ===== View toggle =====
+  function setView(mode){
+    viewMode = mode;
+    selectedNodeId = null;
+    clearFocus();
+    hideTooltip();
+
+    btnViewUJ.classList.toggle("active", viewMode==="UJ");
+    btnViewMax.classList.toggle("active", viewMode==="MAX");
+    btnViewUJ.setAttribute("aria-selected", viewMode==="UJ" ? "true" : "false");
+    btnViewMax.setAttribute("aria-selected", viewMode==="MAX" ? "true" : "false");
+
+    render();
+  }
+
+  btnViewUJ.addEventListener("click", ()=> setView("UJ"));
+  btnViewMax.addEventListener("click", ()=> setView("MAX"));
+
+  // ===== Controls =====
+  document.getElementById("reset").addEventListener("click", ()=>{
+    selectedNodeId = null;
+    search.value = "";
+    render();
+  });
+  search.addEventListener("input", ()=>{
+    applySearch(search.value);
+    if(selectedNodeId) applyFocus(selectedNodeId);
+  });
+  window.addEventListener("keydown", (e)=>{
+    if(e.key==="Escape"){
+      selectedNodeId = null;
+      clearFocus();
+    }
+  });
+
+  // Initial render
+  render();
+</script>
+</body>
+</html>
