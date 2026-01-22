@@ -249,6 +249,7 @@
       line-height:1.2;
     }
     .node:hover{ outline: 2px solid rgba(255,255,255,.35); }
+    .node.dragging{ opacity:.6; }
 
     /* Focus mode (same in both views) */
     .node.dim{ opacity:.18; filter: saturate(.35) brightness(.85); }
@@ -802,6 +803,10 @@
         el.addEventListener("dragstart", (e)=>{
           e.dataTransfer.setData("text/plain", el.dataset.id);
           e.dataTransfer.effectAllowed = "move";
+          el.classList.add("dragging");
+        });
+        el.addEventListener("dragend", ()=>{
+          el.classList.remove("dragging");
         });
       });
       document.querySelectorAll(".col[data-month]").forEach(col=>{
@@ -1017,14 +1022,12 @@
     initializeRoadmapAssignments();
     normalizeRoadmap();
     const buckets = monthBucketsFromAssignments();
-    const buckets = buildRoadmapBuckets();
     const total = nodes.length;
     canvas.innerHTML = `
       <div class="viewHeader">
         <div>
           <h2>Roadmap view</h2>
           <div class="meta">Monthly plan across 24 months, balanced for dependencies and a ${MAX_POINTS_PER_MONTH}-point monthly capacity.</div>
-          <div class="meta">Monthly plan across 24 months, balanced for dependencies and team capacity.</div>
         </div>
         <div class="meta">${total} capabilities · ${MONTHS.length} months</div>
       </div>
@@ -1036,26 +1039,17 @@
           const monthPoints = monthPointsTotal(monthIds);
           return `
             <section class="col" data-month="${index}">
-          const monthNodes = buckets[index] || [];
-          return `
-            <section class="col">
               <div class="colHead">
                 <div>
                   <div class="colTitle">${escapeHtml(month)}</div>
                   <div class="monthMeta">${escapeHtml(index < 12 ? "2026" : "2027")}</div>
-                  <div class="monthCap">${monthPoints} / ${MAX_POINTS_PER_MONTH} pts</div>
+                  <div class="monthCap">Capacity: ${monthPoints} / ${MAX_POINTS_PER_MONTH} pts</div>
                 </div>
                 <div class="count">${monthNodes.length} items</div>
               </div>
               <div class="group" style="border-bottom:none">
                 <div class="nodes">
                   ${monthNodes.map(n => nodeHtml(n, true, true)).join("")}
-                </div>
-                <div class="count">${monthNodes.length}</div>
-              </div>
-              <div class="group" style="border-bottom:none">
-                <div class="nodes">
-                  ${monthNodes.map(n => nodeHtml(n, true)).join("")}
                 </div>
               </div>
             </section>
