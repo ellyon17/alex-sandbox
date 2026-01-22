@@ -699,6 +699,36 @@
         else clearFocus();
       });
     });
+    if(viewMode === "ROADMAP"){
+      document.querySelectorAll(".node").forEach(el=>{
+        el.setAttribute("draggable", "true");
+        el.addEventListener("dragstart", (e)=>{
+          e.dataTransfer.setData("text/plain", el.dataset.id);
+        });
+      });
+      document.querySelectorAll(".col[data-month]").forEach(col=>{
+        col.addEventListener("dragover", (e)=>{
+          e.preventDefault();
+        });
+        col.addEventListener("dragenter", ()=>{
+          col.classList.add("dropTarget");
+        });
+        col.addEventListener("dragleave", ()=>{
+          col.classList.remove("dropTarget");
+        });
+        col.addEventListener("drop", (e)=>{
+          e.preventDefault();
+          col.classList.remove("dropTarget");
+          const id = e.dataTransfer.getData("text/plain");
+          const target = Number(col.dataset.month);
+          moveRoadmapItem(id, target);
+        });
+      });
+    } else {
+      document.querySelectorAll(".node").forEach(el=>{
+        el.removeAttribute("draggable");
+      });
+    }
 
     document.getElementById("main").onclick = ()=>{
       selectedNodeId = null;
@@ -920,11 +950,12 @@
     `;
   }
 
-  function nodeHtml(n, includeMeta=false){
+  function nodeHtml(n, includeMeta=false, showPoints=false){
     // includeMeta=true adds tiny metadata line helpful in Max view
     const metaBits = [];
     if(includeMeta) metaBits.push(ujName(n.uj).replace(/^UJ\d+\s—\s/,""));
     if(n.stage) metaBits.push(n.stage);
+    if(showPoints) metaBits.push(`${pointsFor(n)} pts`);
 
     const meta = metaBits.length ? ` · ${metaBits.join(" / ")}` : "";
 
