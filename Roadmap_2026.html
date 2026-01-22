@@ -1017,12 +1017,14 @@
     initializeRoadmapAssignments();
     normalizeRoadmap();
     const buckets = monthBucketsFromAssignments();
+    const buckets = buildRoadmapBuckets();
     const total = nodes.length;
     canvas.innerHTML = `
       <div class="viewHeader">
         <div>
           <h2>Roadmap view</h2>
           <div class="meta">Monthly plan across 24 months, balanced for dependencies and a ${MAX_POINTS_PER_MONTH}-point monthly capacity.</div>
+          <div class="meta">Monthly plan across 24 months, balanced for dependencies and team capacity.</div>
         </div>
         <div class="meta">${total} capabilities · ${MONTHS.length} months</div>
       </div>
@@ -1034,6 +1036,9 @@
           const monthPoints = monthPointsTotal(monthIds);
           return `
             <section class="col" data-month="${index}">
+          const monthNodes = buckets[index] || [];
+          return `
+            <section class="col">
               <div class="colHead">
                 <div>
                   <div class="colTitle">${escapeHtml(month)}</div>
@@ -1045,6 +1050,12 @@
               <div class="group" style="border-bottom:none">
                 <div class="nodes">
                   ${monthNodes.map(n => nodeHtml(n, true, true)).join("")}
+                </div>
+                <div class="count">${monthNodes.length}</div>
+              </div>
+              <div class="group" style="border-bottom:none">
+                <div class="nodes">
+                  ${monthNodes.map(n => nodeHtml(n, true)).join("")}
                 </div>
               </div>
             </section>
