@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Roadmap — User Journey View / Max Layout View (Self-Contained)</title>
+  <title>Roadmap — User Journey View / Max Layout View / Roadmap View (Self-Contained)</title>
   <style>
     :root{
       --bg:#0b0f14;
@@ -293,6 +293,18 @@
       font-size:12px;
       white-space:nowrap;
     }
+    .monthMeta{
+      color:var(--muted);
+      font-size:11.5px;
+    }
+    .monthCap{
+      color:var(--muted);
+      font-size:11px;
+    }
+    .col.dropTarget{
+      outline: 2px dashed rgba(122,162,255,.6);
+      outline-offset: -6px;
+    }
   </style>
 </head>
 <body>
@@ -305,6 +317,7 @@
     <div class="seg" role="tablist" aria-label="View Toggle">
       <div class="segBtn active" id="btnViewUJ" role="tab" aria-selected="true">User Journey view</div>
       <div class="segBtn" id="btnViewMax" role="tab" aria-selected="false">Max layout view</div>
+      <div class="segBtn" id="btnViewRoadmap" role="tab" aria-selected="false">Roadmap view</div>
     </div>
 
     <input id="search" class="search" placeholder="Search capabilities (SCIM, Arena, CMDB, SBOM, ...)" />
@@ -532,8 +545,9 @@
 
   const btnViewUJ = document.getElementById("btnViewUJ");
   const btnViewMax = document.getElementById("btnViewMax");
+  const btnViewRoadmap = document.getElementById("btnViewRoadmap");
 
-  let viewMode = "UJ";          // "UJ" | "MAX"
+  let viewMode = "UJ";          // "UJ" | "MAX" | "ROADMAP"
   let activeUJ = "UJ2";
   let selectedNodeId = null;
 
@@ -546,6 +560,22 @@
     "Remediation":"Remediation",
     "Verify":"Verify"
   };
+  const MONTHS = [
+    "Jan 2026","Feb 2026","Mar 2026","Apr 2026","May 2026","Jun 2026",
+    "Jul 2026","Aug 2026","Sep 2026","Oct 2026","Nov 2026","Dec 2026",
+    "Jan 2027","Feb 2027","Mar 2027","Apr 2027","May 2027","Jun 2027",
+    "Jul 2027","Aug 2027","Sep 2027","Oct 2027","Nov 2027","Dec 2027"
+  ];
+  const STAGE_WINDOWS = {
+    "Onboarding":[0,2],
+    "Discovery":[3,5],
+    "Inventory":[6,11],
+    "Test":[12,16],
+    "Remediation":[17,20],
+    "Verify":[21,23]
+  };
+  const POINTS_SCALE = [3,5,7,10];
+  const MAX_POINTS_PER_MONTH = 80;
 
   // ===== Helpers =====
   function escapeHtml(s){
@@ -559,6 +589,103 @@
   function idToNode(id){ return nodes.find(n=>n.id===id); }
   function idToLabel(id){ const n = idToNode(id); return n ? n.label : id; }
   function ujName(id){ return (UJ.find(u=>u.id===id) || {}).name || id; }
+  function pointsFor(n){
+    const text = `${n.label} ${n.theme} ${n.stage}`.toLowerCase();
+    let score = 0;
+    if(/integration|platform|orchestration|automation|deployment|endpoint|system/i.test(text)) score += 2;
+    if(/dashboard|landing|management|inventory|monitor|report|attestation/i.test(text)) score += 1;
+    if(/sensor|scan|detection|testing|vuln|shield|framework|compliance/i.test(text)) score += 2;
+    if(/basic|manual|csv|upload/i.test(text)) score -= 1;
+    if(score <= 0) return POINTS_SCALE[0];
+    if(score === 1) return POINTS_SCALE[1];
+    if(score === 2 || score === 3) return POINTS_SCALE[2];
+    return POINTS_SCALE[3];
+  }
+  function sortedNodesForStage(stage){
+    return nodes
+      .filter(n => (n.stage || "Inventory") === stage)
+      .sort((a,b)=> a.theme.localeCompare(b.theme) || a.label.localeCompare(b.label));
+  }
+  let roadmapAssignments = null;
+  function initializeRoadmapAssignments(){
+    if(roadmapAssignments) return;
+    roadmapAssignments = {};
+    const buckets = buildRoadmapBuckets();
+    buckets.forEach((bucket, monthIndex) => {
+      bucket.forEach(node => {
+        roadmapAssignments[node.id] = monthIndex;
+      });
+    });
+  }
+  function monthBucketsFromAssignments(){
+    const buckets = MONTHS.map(() => []);
+    const ordered = nodes.map(n => n.id);
+    ordered.forEach(id => {
+      const monthIndex = roadmapAssignments[id];
+      if(monthIndex === undefined) return;
+      buckets[monthIndex].push(id);
+    });
+    return buckets;
+  }
+  function monthPointsTotal(ids){
+    return ids.reduce((sum, id) => {
+      const node = idToNode(id);
+      return sum + (node ? pointsFor(node) : 0);
+    }, 0);
+  }
+  function normalizeRoadmap(){
+    if(!roadmapAssignments) return;
+    let changed = true;
+    let guard = 0;
+    while(changed && guard < 60){
+      changed = false;
+      guard += 1;
+      for(const [a,b] of edges){
+        if(roadmapAssignments[b] < roadmapAssignments[a]){
+          roadmapAssignments[b] = roadmapAssignments[a];
+          changed = true;
+        }
+      }
+      const buckets = monthBucketsFromAssignments();
+      for(let m = 0; m < buckets.length; m++){
+        let total = monthPointsTotal(buckets[m]);
+        while(total > MAX_POINTS_PER_MONTH && buckets[m].length && m < buckets.length - 1){
+          const movedId = buckets[m].pop();
+          roadmapAssignments[movedId] = m + 1;
+          total -= pointsFor(idToNode(movedId));
+          changed = true;
+        }
+      }
+    }
+  }
+  function moveRoadmapItem(id, targetMonth){
+    initializeRoadmapAssignments();
+    if(!roadmapAssignments || !idToNode(id)) return;
+    const safeTarget = Math.max(0, Math.min(MONTHS.length - 1, targetMonth));
+    const prereqMonths = prereqsOf(id).map(pid => roadmapAssignments[pid]).filter(v => v !== undefined);
+    const latestPrereq = prereqMonths.length ? Math.max(...prereqMonths) : 0;
+    if(safeTarget < latestPrereq){
+      alert("Cannot move earlier than its prerequisite work.");
+      return;
+    }
+    roadmapAssignments[id] = safeTarget;
+    normalizeRoadmap();
+    render();
+  }
+  function buildRoadmapBuckets(){
+    const buckets = MONTHS.map(() => []);
+    for(const stage of STAGE_ORDER){
+      const [start,end] = STAGE_WINDOWS[stage];
+      const span = end - start + 1;
+      const stagedNodes = sortedNodesForStage(stage);
+      stagedNodes.forEach((node, index) => {
+        const offset = Math.floor(index * span / stagedNodes.length);
+        const monthIndex = start + offset;
+        buckets[monthIndex].push(node);
+      });
+    }
+    return buckets;
+  }
 
   function prereqsOf(id){
     const prereq = [];
@@ -660,6 +787,36 @@
         else clearFocus();
       });
     });
+    if(viewMode === "ROADMAP"){
+      document.querySelectorAll(".node").forEach(el=>{
+        el.setAttribute("draggable", "true");
+        el.addEventListener("dragstart", (e)=>{
+          e.dataTransfer.setData("text/plain", el.dataset.id);
+        });
+      });
+      document.querySelectorAll(".col[data-month]").forEach(col=>{
+        col.addEventListener("dragover", (e)=>{
+          e.preventDefault();
+        });
+        col.addEventListener("dragenter", ()=>{
+          col.classList.add("dropTarget");
+        });
+        col.addEventListener("dragleave", ()=>{
+          col.classList.remove("dropTarget");
+        });
+        col.addEventListener("drop", (e)=>{
+          e.preventDefault();
+          col.classList.remove("dropTarget");
+          const id = e.dataTransfer.getData("text/plain");
+          const target = Number(col.dataset.month);
+          moveRoadmapItem(id, target);
+        });
+      });
+    } else {
+      document.querySelectorAll(".node").forEach(el=>{
+        el.removeAttribute("draggable");
+      });
+    }
 
     document.getElementById("main").onclick = ()=>{
       selectedNodeId = null;
@@ -698,7 +855,7 @@
           render();
         });
       });
-    } else {
+    } else if(viewMode === "MAX") {
       // Max layout sidebar
       const counts = STAGE_ORDER.map(s => [s, nodes.filter(n => n.stage === s).length]);
       sidebar.innerHTML = `
@@ -712,6 +869,28 @@
           </div>
         </div>
 
+        <div class="legend">
+          <div><b>Legend</b></div>
+          <div class="pill"><span class="swatch" style="background: var(--node)"></span>Capability (yellow)</div>
+          <div class="pill"><span class="swatch" style="background: var(--danger)"></span><b>Red</b>: prerequisites</div>
+          <div class="pill"><span class="swatch" style="background: var(--success)"></span><b>Green</b>: downstream</div>
+          <div style="margin-top:10px">Tip: click to pin focus. Esc clears.</div>
+        </div>
+      `;
+    } else {
+      const counts = STAGE_ORDER.map(s => [s, nodes.filter(n => n.stage === s).length]);
+      sidebar.innerHTML = `
+        <div class="card">
+          <div style="font-weight:800;margin-bottom:6px">Roadmap view</div>
+          <div style="color:var(--muted);font-size:12.5px;line-height:1.35">
+            Month-by-month plan from <b>Jan 2026 → Dec 2027</b>, balanced for a <b>10-person engineering team</b>.
+            Work is sequenced by stage dependencies (Onboarding → Verify).
+            <div style="margin-top:8px">Drag items between months. Max <b>${MAX_POINTS_PER_MONTH} pts</b> per month with dependency checks.</div>
+          </div>
+          <div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:8px">
+            ${counts.map(([s,c])=> `<div class="pillMini">${escapeHtml(s)} <span style="opacity:.7">(${c})</span></div>`).join("")}
+          </div>
+        </div>
         <div class="legend">
           <div><b>Legend</b></div>
           <div class="pill"><span class="swatch" style="background: var(--node)"></span>Capability (yellow)</div>
@@ -823,12 +1002,54 @@
       </div>
     `;
   }
+  // ===== Render Roadmap View =====
+  function renderRoadmapView(){
+    initializeRoadmapAssignments();
+    normalizeRoadmap();
+    const buckets = monthBucketsFromAssignments();
+    const total = nodes.length;
+    canvas.innerHTML = `
+      <div class="viewHeader">
+        <div>
+          <h2>Roadmap view</h2>
+          <div class="meta">Monthly plan across 24 months, balanced for dependencies and team capacity.</div>
+        </div>
+        <div class="meta">${total} capabilities · ${MONTHS.length} months</div>
+      </div>
 
-  function nodeHtml(n, includeMeta=false){
+      <div class="colsGrid">
+        ${MONTHS.map((month, index) => {
+          const monthIds = buckets[index] || [];
+          const monthNodes = monthIds.map(idToNode).filter(Boolean);
+          const monthPoints = monthPointsTotal(monthIds);
+          return `
+            <section class="col" data-month="${index}">
+              <div class="colHead">
+                <div>
+                  <div class="colTitle">${escapeHtml(month)}</div>
+                  <div class="monthMeta">${escapeHtml(index < 12 ? "2026" : "2027")}</div>
+                  <div class="monthCap">${monthPoints} / ${MAX_POINTS_PER_MONTH} pts</div>
+                </div>
+                <div class="count">${monthNodes.length} items</div>
+              </div>
+              <div class="group" style="border-bottom:none">
+                <div class="nodes">
+                  ${monthNodes.map(n => nodeHtml(n, true, true)).join("")}
+                </div>
+              </div>
+            </section>
+          `;
+        }).join("")}
+      </div>
+    `;
+  }
+
+  function nodeHtml(n, includeMeta=false, showPoints=false){
     // includeMeta=true adds tiny metadata line helpful in Max view
     const metaBits = [];
     if(includeMeta) metaBits.push(ujName(n.uj).replace(/^UJ\d+\s—\s/,""));
     if(n.stage) metaBits.push(n.stage);
+    if(showPoints) metaBits.push(`${pointsFor(n)} pts`);
 
     const meta = metaBits.length ? ` · ${metaBits.join(" / ")}` : "";
 
@@ -842,11 +1063,12 @@
 
   // ===== Render root =====
   function render(){
-    subtitle.textContent = (viewMode === "UJ") ? "User Journey view" : "Max layout view";
+    subtitle.textContent = (viewMode === "UJ") ? "User Journey view" : (viewMode === "MAX" ? "Max layout view" : "Roadmap view");
     renderSidebar();
 
     if(viewMode === "UJ") renderUJView();
-    else renderMaxView();
+    else if(viewMode === "MAX") renderMaxView();
+    else renderRoadmapView();
 
     wireNodes();
   }
@@ -860,14 +1082,17 @@
 
     btnViewUJ.classList.toggle("active", viewMode==="UJ");
     btnViewMax.classList.toggle("active", viewMode==="MAX");
+    btnViewRoadmap.classList.toggle("active", viewMode==="ROADMAP");
     btnViewUJ.setAttribute("aria-selected", viewMode==="UJ" ? "true" : "false");
     btnViewMax.setAttribute("aria-selected", viewMode==="MAX" ? "true" : "false");
+    btnViewRoadmap.setAttribute("aria-selected", viewMode==="ROADMAP" ? "true" : "false");
 
     render();
   }
 
   btnViewUJ.addEventListener("click", ()=> setView("UJ"));
   btnViewMax.addEventListener("click", ()=> setView("MAX"));
+  btnViewRoadmap.addEventListener("click", ()=> setView("ROADMAP"));
 
   // ===== Controls =====
   document.getElementById("reset").addEventListener("click", ()=>{
