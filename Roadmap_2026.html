@@ -297,6 +297,14 @@
       color:var(--muted);
       font-size:11.5px;
     }
+    .monthCap{
+      color:var(--muted);
+      font-size:11px;
+    }
+    .col.dropTarget{
+      outline: 2px dashed rgba(122,162,255,.6);
+      outline-offset: -6px;
+    }
   </style>
 </head>
 <body>
@@ -566,6 +574,8 @@
     "Remediation":[17,20],
     "Verify":[21,23]
   };
+  const POINTS_SCALE = [3,5,8,13,20];
+  const MAX_POINTS_PER_MONTH = 80;
 
   // ===== Helpers =====
   function escapeHtml(s){
@@ -579,10 +589,97 @@
   function idToNode(id){ return nodes.find(n=>n.id===id); }
   function idToLabel(id){ const n = idToNode(id); return n ? n.label : id; }
   function ujName(id){ return (UJ.find(u=>u.id===id) || {}).name || id; }
+  function pointsFor(n){
+    const text = `${n.label} ${n.theme} ${n.stage}`.toLowerCase();
+    let score = 0;
+    if(/integration|platform|orchestration|automation|deployment|endpoint|system/i.test(text)) score += 2;
+    if(/dashboard|landing|management|inventory|monitor|report|attestation/i.test(text)) score += 1;
+    if(/sensor|scan|detection|testing|vuln|shield|framework|compliance/i.test(text)) score += 2;
+    if(/basic|manual|csv|upload/i.test(text)) score -= 1;
+    if(score <= 0) return POINTS_SCALE[0];
+    if(score === 1) return POINTS_SCALE[1];
+    if(score === 2 || score === 3) return POINTS_SCALE[2];
+    if(score === 4) return POINTS_SCALE[3];
+    return POINTS_SCALE[4];
+  }
   function sortedNodesForStage(stage){
     return nodes
       .filter(n => (n.stage || "Inventory") === stage)
       .sort((a,b)=> a.theme.localeCompare(b.theme) || a.label.localeCompare(b.label));
+  }
+  let roadmapAssignments = null;
+  function initializeRoadmapAssignments(){
+    if(roadmapAssignments) return;
+    roadmapAssignments = {};
+    const buckets = buildRoadmapBuckets();
+    buckets.forEach((bucket, monthIndex) => {
+      bucket.forEach(node => {
+        roadmapAssignments[node.id] = monthIndex;
+      });
+    });
+  }
+  function monthBucketsFromAssignments(){
+    const buckets = MONTHS.map(() => []);
+    const ordered = nodes.map(n => n.id);
+    ordered.forEach(id => {
+      const monthIndex = roadmapAssignments[id];
+      if(monthIndex === undefined) return;
+      buckets[monthIndex].push(id);
+    });
+    return buckets;
+  }
+  function monthPointsTotal(ids){
+    return ids.reduce((sum, id) => {
+      const node = idToNode(id);
+      return sum + (node ? pointsFor(node) : 0);
+    }, 0);
+  }
+  function normalizeRoadmap(){
+    if(!roadmapAssignments) return;
+    let changed = true;
+    let guard = 0;
+    while(changed && guard < 60){
+      changed = false;
+      guard += 1;
+      for(const [a,b] of edges){
+        if(roadmapAssignments[b] < roadmapAssignments[a]){
+          roadmapAssignments[b] = roadmapAssignments[a];
+          changed = true;
+        }
+      }
+      const buckets = monthBucketsFromAssignments();
+      for(let m = 0; m < buckets.length; m++){
+        let total = monthPointsTotal(buckets[m]);
+        while(total > MAX_POINTS_PER_MONTH && buckets[m].length){
+          const movedId = buckets[m].pop();
+          const movePoints = pointsFor(idToNode(movedId));
+          let target = m + 1;
+          while(target < buckets.length){
+            const targetTotal = monthPointsTotal(buckets[target]);
+            if(targetTotal + movePoints <= MAX_POINTS_PER_MONTH) break;
+            target += 1;
+          }
+          if(target >= buckets.length) target = buckets.length - 1;
+          roadmapAssignments[movedId] = target;
+          total -= movePoints;
+          changed = true;
+        }
+      }
+    }
+  }
+  function moveRoadmapItem(id, targetMonth){
+    initializeRoadmapAssignments();
+    if(!roadmapAssignments || !idToNode(id)) return;
+    const safeTarget = Math.max(0, Math.min(MONTHS.length - 1, targetMonth));
+    const prereqMonths = prereqsOf(id).map(pid => roadmapAssignments[pid]).filter(v => v !== undefined);
+    const latestPrereq = prereqMonths.length ? Math.max(...prereqMonths) : 0;
+    if(safeTarget < latestPrereq){
+      alert("Cannot move earlier than its prerequisite work.");
+      return;
+    }
+    roadmapAssignments[id] = safeTarget;
+    normalizeRoadmap();
+    render();
   }
   function buildRoadmapBuckets(){
     const buckets = MONTHS.map(() => []);
@@ -648,7 +745,7 @@
       <div class="tTitle">${escapeHtml(n.label)}</div>
       <div class="tMeta">
         <div><b>User Journey:</b> ${escapeHtml(ujName(n.uj))}</div>
-        <div><b>Stage:</b> ${escapeHtml(n.stage||"—")} · <b>Theme:</b> ${escapeHtml(n.theme||"—")}</div>
+        <div><b>Stage:</b> ${escapeHtml(n.stage||"—")} · <b>Theme:</b> ${escapeHtml(n.theme||"—")} · <b>Points:</b> ${pointsFor(n)}</div>
         ${n.notes ? `<div style="margin-top:6px;color:var(--muted)">${escapeHtml(n.notes)}</div>` : ""}
         <div style="margin-top:8px"><b style="color:var(--danger)">Depends on:</b> ${prereq.length ? prereq.map(escapeHtml).join(", ") : "—"}</div>
         <div><b style="color:var(--success)">Enables:</b> ${down.length ? down.map(escapeHtml).join(", ") : "—"}</div>
@@ -704,6 +801,7 @@
         el.setAttribute("draggable", "true");
         el.addEventListener("dragstart", (e)=>{
           e.dataTransfer.setData("text/plain", el.dataset.id);
+          e.dataTransfer.effectAllowed = "move";
         });
       });
       document.querySelectorAll(".col[data-month]").forEach(col=>{
@@ -797,6 +895,7 @@
           <div style="color:var(--muted);font-size:12.5px;line-height:1.35">
             Month-by-month plan from <b>Jan 2026 → Dec 2027</b>, balanced for a <b>10-person engineering team</b>.
             Work is sequenced by stage dependencies (Onboarding → Verify).
+            <div style="margin-top:8px">Drag items between months. Max <b>${MAX_POINTS_PER_MONTH} pts</b> per month with dependency checks.</div>
           </div>
           <div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:8px">
             ${counts.map(([s,c])=> `<div class="pillMini">${escapeHtml(s)} <span style="opacity:.7">(${c})</span></div>`).join("")}
@@ -915,12 +1014,16 @@
   }
   // ===== Render Roadmap View =====
   function renderRoadmapView(){
+    initializeRoadmapAssignments();
+    normalizeRoadmap();
+    const buckets = monthBucketsFromAssignments();
     const buckets = buildRoadmapBuckets();
     const total = nodes.length;
     canvas.innerHTML = `
       <div class="viewHeader">
         <div>
           <h2>Roadmap view</h2>
+          <div class="meta">Monthly plan across 24 months, balanced for dependencies and a ${MAX_POINTS_PER_MONTH}-point monthly capacity.</div>
           <div class="meta">Monthly plan across 24 months, balanced for dependencies and team capacity.</div>
         </div>
         <div class="meta">${total} capabilities · ${MONTHS.length} months</div>
@@ -928,6 +1031,11 @@
 
       <div class="colsGrid">
         ${MONTHS.map((month, index) => {
+          const monthIds = buckets[index] || [];
+          const monthNodes = monthIds.map(idToNode).filter(Boolean);
+          const monthPoints = monthPointsTotal(monthIds);
+          return `
+            <section class="col" data-month="${index}">
           const monthNodes = buckets[index] || [];
           return `
             <section class="col">
@@ -935,6 +1043,13 @@
                 <div>
                   <div class="colTitle">${escapeHtml(month)}</div>
                   <div class="monthMeta">${escapeHtml(index < 12 ? "2026" : "2027")}</div>
+                  <div class="monthCap">${monthPoints} / ${MAX_POINTS_PER_MONTH} pts</div>
+                </div>
+                <div class="count">${monthNodes.length} items</div>
+              </div>
+              <div class="group" style="border-bottom:none">
+                <div class="nodes">
+                  ${monthNodes.map(n => nodeHtml(n, true, true)).join("")}
                 </div>
                 <div class="count">${monthNodes.length}</div>
               </div>
